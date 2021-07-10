@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "private": false,
   "author": {
-    "name": "teemo.js"
+    "name": "teemojs"
   },
   "license": "ISC",
   "repository": {
