@@ -1,0 +1,608 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>JSDoc: libs/index.js</title>
+
+    <script src="https://cdn.jsdelivr.net/gh/google/code-prettify@master/loader/run_prettify.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="./build/entry.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link href="https://fonts.googleapis.com/css?family=Muli:100,400,700|Oswald:300|Inconsolata,700" rel="stylesheet">
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.6.3/css/all.css" integrity="sha384-UHRtZLI+pbxtHCWp1t77Bi1L4ZtiqrqD80Kn4Z8NTSRyMA2Fd33n5dQ8lWUE00s/" crossorigin="anonymous">
+    <link type="text/css" rel="stylesheet" href="https://jmblog.github.io/color-themes-for-google-code-prettify/themes/tomorrow-night.min.css">
+    <link type="text/css" rel="stylesheet" href="styles/app.min.css">
+    <link type="text/css" rel="stylesheet" href="styles/iframe.css">
+</head>
+
+<body>
+    <div id="stickyNavbarOverlay"></div>
+    <div class="top-navbar">
+        <div class="container">
+            <nav class="navbar" role="navigation" aria-label="main navigation">
+                <div class="navbar-brand">
+                    
+                    
+                        <h1 class="navbar-item">Documentation</h1>
+                    
+                    <a id="hamburger" role="button" class="navbar-burger" aria-label="menu" aria-expanded="false">
+                        <span aria-hidden="true"></span>
+                        <span aria-hidden="true"></span>
+                        <span aria-hidden="true"></span>
+                    </a>
+                </div>
+                
+            </nav>
+        </div>
+    </div>
+    <div class="container">
+        <div class="columns">
+            <div class="column is-3" id="sidebarNav">
+                <div class="sidebar">
+                    <nav>
+                        <h2><a href="index.html">Home</a></h2><div class="category"><h3>Classes</h3><ul><li><a href="Logger.html">Logger</a></li><li><a href="Logger.Logger.html">Logger</a></li></ul><h3><a href="global.html">Global</a></h3></div>
+                    </nav>
+                </div>
+            </div>
+            <div class="column is-9-desktop">
+                <div class="content" id="main-content-wrapper">
+                    <header class="page-title">
+                        <p>Source</p>
+                        <h1>libs/index.js</h1>
+                    </header>
+                    
+                    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>'use strict'
+// @ts-check
+
+const _ = require('lodash')
+const config = require('config')
+const util = require('util')
+const path = require('path')
+const Log4js = require('log4js')
+const Winston = require('winston')
+const Morgan = require('morgan')
+const WinstonRequestLogger = require('winston-request-logger')
+const colors = require('colors/safe')
+require('winston-daily-rotate-file')
+
+/**
+ * @description This is a class for loggin, wrapped with `Winston Logger` or fallback with `Console`
+ *
+ * @class Logger
+ */
+class Logger {
+  /**
+   *Creates an instance of Logger.
+   * @memberof Logger
+   */
+  constructor() {
+    try {
+      this.initOptions()
+      this.configureLog4js()
+      this.configureWinston()
+      this.configureMorgan()
+      this.createLog4jsLogger()
+      this.createWinstonLogger()
+    } catch (error) {
+      console.error(error)
+      this.instance = console
+    }
+  }
+
+  /**
+   *
+   * @description configure logger options from `config`
+   * @returns {void}
+   * @memberof Logger
+   */
+  initOptions() {
+    /** @type {ILoggerOption} */
+    this.options = {
+      log4js: {
+        appenders: {
+          system: {
+            type: 'file',
+            filename: path.resolve('logs', 'system.log'),
+            maxLogSize: 1048576,
+            backups: 3
+          },
+          access: {
+            type: 'dateFile',
+            filename: path.resolve('logs', 'access.log'),
+            pattern: '-yyyy-MM-dd'
+          },
+          error: {
+            type: 'dateFile',
+            filename: path.resolve('logs', 'error.log'),
+            pattern: '-yyyy-MM-dd'
+          },
+          console: {
+            type: 'console'
+          },
+          stdout: {
+            type: 'stdout'
+          }
+        },
+        categories: {
+          default: {
+            appenders: ['access', 'console', 'stdout'],
+            level: 'INFO'
+          },
+          access: {
+            appenders: ['access', 'console', 'stdout'],
+            level: 'INFO'
+          },
+          system: {
+            appenders: ['system', 'console', 'stdout'],
+            level: 'ALL'
+          },
+          error: {
+            appenders: ['error', 'console', 'stdout'],
+            level: 'WARN'
+          }
+        },
+        replaceConsole: true
+      },
+      winston: {
+        console: {
+          handleExceptions: true,
+          json: false,
+          colorize: true,
+          timestamp: true
+        },
+        file: {
+          handleExceptions: true,
+          json: false,
+          colorize: true,
+          timestamp: true,
+          filename: path.resolve('logs', 'app-%DATE%.log'),
+          datePattern: 'YYYY-MM-DD',
+          zippedArchive: true,
+          maxSize: '100m',
+          maxFiles: '30d'
+        },
+        label: 'LOGGER',
+        level: 'debug',
+        exitOnError: false,
+        format: {
+          timestamp: 'YYYY-MM-DD HH:mm:ss'
+        }
+      },
+      morgan: {
+        immediate: true,
+        level: 'combined',
+        format: '[URL: :url] [UA: :user-agent]'
+      }
+    }
+  }
+
+  /**
+   *
+   *
+   * @description configure morgan instance
+   * @returns {void}
+   * @memberof Logger
+   */
+  configureWinston() {
+    try {
+      if (!_.isEmpty(_.get(config, 'logger.winston'))) {
+        const clone = _.cloneDeep(this.options.winston)
+        const src = _.pickBy(_.get(config, 'logger.winston'), v => !_.isUndefined(v))
+        const dist = _.merge(clone, src)
+        this.options.winston = dist
+      }
+    } catch (error) {
+      console.error(error)
+      throw error
+    }
+  }
+
+  /**
+   *
+   * @description create winston instance
+   * @returns {void}
+   * @memberof Logger
+   */
+  createWinstonLogger() {
+    try {
+      const { exitOnError = false, level = 'debug' } = this.options.winston
+      const transports = [this.createWinstonFileTransport(), this.createWinstonConsoleTransport()]
+      const format = Winston.format.combine(this.labelFormatter, this.timestampFormatter, this.printfFormatter)
+
+      this.instance = Winston.createLogger({
+        exitOnError,
+        level,
+        format,
+        transports
+      })
+    } catch (error) {
+      console.error(error)
+      throw error
+    }
+  }
+
+  /**
+   *
+   * @description create Log4js instance
+   * @returns {Log4js}
+   * @memberof Logger
+   */
+  createLog4jsLogger() {
+    try {
+      Log4js.configure(this.options.log4js)
+    } catch (error) {
+      console.error(error)
+      throw error
+    }
+  }
+
+  /**
+   *
+   * @description configure winston console logging
+   * @returns {Winston.ConsoleTransportInstance}
+   * @memberof Logger
+   */
+  createWinstonConsoleTransport() {
+    try {
+      return new Winston.transports.Console(this.options.winston.console)
+    } catch (error) {
+      console.error(error)
+      throw error
+    }
+  }
+
+  /**
+   *
+   * @description configure winston log-rotate
+   * @returns {Winston.WinstonRequestLogger}
+   * @memberof Logger
+   */
+  createWinstonFileTransport() {
+    try {
+      return new Winston.transports.DailyRotateFile(this.options.winston.file)
+    } catch (error) {
+      console.error(error)
+      throw error
+    }
+  }
+
+  /**
+   *
+   * @description winston log label format
+   * @readonly
+   * @returns {Winston.Format}
+   * @memberof Logger
+   */
+  get labelFormatter() {
+    const label = this.options.winston.label
+    return Winston.format.label({
+      label
+    })
+  }
+
+  /**
+   *
+   * @description winston log timestamp format
+   * @readonly
+   * @returns {Winston.Format}
+   * @memberof Logger
+   */
+  get timestampFormatter() {
+    const format = this.options.winston.format.timestamp
+    return Winston.format.timestamp({
+      format
+    })
+  }
+
+  /**
+   *
+   * @description winston log format
+   * @readonly
+   * @returns {Winston.Format}
+   * @memberof Logger
+   */
+  get printfFormatter() {
+    const decorator = this.decorator.bind(this)
+    let formatFn = this.options.winston.format.printf
+    if (!_.isFunction(formatFn)) {
+      formatFn = info =>
+        `${decorator(info.level, true)(`[${info.label}: ${_.toUpper(info.level)}]`)} ${decorator('grey')(
+          ` [TIME:${info.timestamp}] `
+        )} ${decorator(info.level)(info.message)}`
+    }
+
+    return Winston.format.printf(formatFn)
+  }
+
+  /**
+   *
+   * @description configure Log4js
+   * @returns {void}
+   * @memberof Logger
+   */
+  configureLog4js() {
+    try {
+      if (!_.isEmpty(_.get(config, 'logger.log4js'))) {
+        const clone = _.cloneDeep(this.options.log4js)
+        const src = _.pickBy(_.get(config, 'logger.log4js'), v => !_.isUndefined(v))
+        const dist = _.merge(clone, src)
+        this.options.log4js = dist
+      }
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+  /**
+   *
+   * @description returns an instance of Log4js
+   * @param {TLog4jsAppender} [category='system']
+   * @returns {Log4js.Logger}
+   * @memberof Logger
+   */
+  getLog4js(category = 'system') {
+    try {
+      return Log4js.getLogger(category)
+    } catch (error) {
+      console.error(error)
+      return undefined
+    }
+  }
+
+  /**
+   *
+   * @description configure morgan
+   * @returns {void}
+   * @memberof Logger
+   */
+  configureMorgan() {
+    try {
+      if (!_.isEmpty(_.get(config, 'logger.morgan'))) {
+        const clone = _.cloneDeep(this.options.morgan)
+        const src = _.pickBy(_.get(config, 'logger.morgan'), v => !_.isUndefined(v))
+        const dist = _.merge(clone, src)
+        this.options.morgan = dist
+      }
+    } catch (error) {
+      console.error(error)
+      throw error
+    }
+  }
+
+  /**
+   *
+   * @description colorize logging on console
+   * @param {TWinstonLevel} level
+   * @param {boolean} [isInverse=false]
+   * @returns {string}
+   * @memberof Logger
+   */
+  decorator(level, isInverse = false) {
+    const level2Colors = {
+      info: 'green',
+      debug: 'cyan',
+      error: 'red',
+      warn: 'yellow'
+    }
+    const color = level2Colors[_.toLower(level)] || 'grey'
+    return isInverse ? colors.inverse[color] : colors[color]
+  }
+
+  /**
+   *
+   * @description noop(no operation)
+   * @param {*} messages
+   * @returns {void}
+   * @memberof Logger
+   */
+  noop(...messages) {
+    return undefined
+  }
+
+  /**
+   *
+   * @description logging with level info
+   * @example `SomePromiseLike().then(...).catch(...)`
+   * @example `SomePromiseLike().then(date =>Logger.info(date))`
+   * @param {*} messages
+   * @returns {void}
+   * @memberof Logger
+   */
+  info(...messages) {
+    try {
+      _.toArray(messages).map(message => this.instance.info(util.inspect(message)))
+    } catch (error) {
+      console.error(error)
+    }
+
+    return this.noop()
+  }
+
+  /**
+   *
+   * @description logging with level error
+   * @param {*} messages
+   * @returns {void}
+   * @memberof Logger
+   */
+  error(...messages) {
+    try {
+      _.toArray(messages).map(message => this.instance.error(util.inspect(message)))
+    } catch (error) {
+      console.error(error)
+    }
+
+    return this.noop()
+  }
+
+  /**
+   *
+   * @description logging with level warn
+   * @param {*} messages
+   * @returns {void}
+   * @memberof Logger
+   */
+  warn(...messages) {
+    try {
+      _.toArray(messages).map(message => this.instance.warn(util.inspect(message)))
+    } catch (error) {
+      console.error(error)
+    }
+
+    return this.noop()
+  }
+
+  /**
+   *
+   * @description logging with level debug
+   * @param {*} messages
+   * @returns {void}
+   * @memberof Logger
+   */
+  debug(...messages) {
+    try {
+      _.toArray(messages).map(message => this.instance.debug(util.inspect(message)))
+    } catch (error) {
+      console.error(error)
+    }
+
+    return this.noop()
+  }
+
+  /**
+   *
+   * @description logging connecting with Morgan, need to implement method named as `write`
+   * @param {*} messages
+   * @returns {void}
+   * @memberof Logger
+   */
+  write(...messages) {
+    return this.info(messages)
+  }
+
+  /**
+   *
+   * @description logging with log4js
+   * @param {*} message
+   * @param {TLog4jsAppender} [category='system']
+   * @returns {void}
+   * @memberof Logger
+   */
+  trace(message, category = 'system') {
+    try {
+      if (_.isEmpty(category)) {
+        throw new TypeError(`invalid category ${category}`)
+      }
+
+      this.getLog4js(category).trace(message)
+    } catch (error) {
+      console.error(error)
+    }
+
+    return this.noop()
+  }
+
+  /**
+   *
+   * @description returns a middleware function for Expreess.
+   * @example app.use(Logger.getLog4jsMiddleware());
+   * @param {TLog4jsAppender} [category='system']
+   * @returns {express.RequestHandler}
+   * @memberof Logger
+   */
+  getLog4jsMiddleware(category = 'system') {
+    try {
+      if (_.isEmpty(category)) {
+        throw new TypeError(`invalid category ${category}`)
+      }
+
+      return Log4js.connectLogger(this.getLog4js(category))
+    } catch (error) {
+      console.error(error)
+      return (req, res, next) => next()
+    }
+  }
+
+  /**
+   *
+   * @description returns a middleware function for Expreess.
+   * @example app.use(Logger.getMorganMiddleware());
+   * @returns {express.RequestHandler}
+   * @memberof Logger
+   */
+  getMorganMiddleware() {
+    try {
+      const format = this.options.morgan.format
+      const immediate = this.options.morgan.immediate
+      const stream = this
+      const options = {
+        stream,
+        immediate
+      }
+
+      return Morgan(format, options)
+    } catch (error) {
+      console.error(error)
+      return (req, res, next) => next()
+    }
+  }
+
+  /**
+   *
+   * @description returns a middleware function for Expreess.
+   * @example app.use(Logger.getWinstonMiddleware());
+   * @returns {express.RequestHandler}
+   * @memberof Logger
+   */
+  getWinstonMiddleware() {
+    try {
+      return WinstonRequestLogger.create(this.instance)
+    } catch (error) {
+      console.error(error)
+      return (req, res, next) => next()
+    }
+  }
+}
+
+module.exports = new Logger()
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+<footer class="footer">
+    <div class="content has-text-centered">
+        <p>Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.6.3</a> on Sat Jul 10 2021 16:32:04 GMT+0800 (GMT+08:00)</p>
+        <p class="sidebar-created-by">
+            <a href="https://github.com/SoftwareBrothers/better-docs" target="_blank">BetterDocs theme</a> provided with <i class="fas fa-heart"></i> by 
+            <a href="http://softwarebrothers.co" target="_blank">SoftwareBrothers - JavaScript Development Agency</a>
+        </p>
+    </div>
+</footer>
+
+
+<script src="scripts/app.min.js"></script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
