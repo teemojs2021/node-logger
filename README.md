@@ -1,4 +1,4 @@
-# @teemo.js/node-logger
+# @teemo.js-node/node-logger
 
 This is a logger package module for express.
 

@@ -1,5 +1,5 @@
 {
-  "name": "@teemo.js/node-logger",
+  "name": "@teemo.js-node/node-logger",
   "version": "1.0.0",
   "description": "node-logger",
   "main": "dist/index.js",
